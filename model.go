@@ -7,7 +7,7 @@ type Change struct {
 	Branch        string  `json:"branch,omitempty"`
 	Topic         string  `json:"topic,omitempty"`
 	ID            string  `json:"id,omitempty"`
-	Number        int     `json:"number,omitempty"`
+	Number        string  `json:"number,omitempty"`
 	Subject       string  `json:"subject,omitempty"`
 	Owner         Account `json:"owner,omitempty"`
 	URL           string  `json:"url,omitempty"`
@@ -42,9 +42,9 @@ type TrackingID struct {
 // Account - A user account.
 // https://gerrit-review.googlesource.com/Documentation/json.html#account
 type Account struct {
-	Name        string `json:"name,omitempty"`
-	Email       string `json:"email,omitempty"`
-	Accountname string `json:"username,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
 }
 
 // PatchSet - Refers to a specific patchset within a change.
@@ -189,6 +189,8 @@ type StreamEvent struct {
 	HashTags    []string  `json:"hashtags,omitempty"`
 	ProjectName string    `json:"projectName,omitempty"`
 	ProjectHead string    `json:"projectHead,omitempty"`
+	Project     string    `json:"project,omitempty"`
+	RefName     string    `json:"refName,omitempty"`
 	RefUpdate   RefUpdate `json:"refUpdate,omitempty"`
 
 	EventCreatedOn int `json:"eventCreatedOn,omitempty"`

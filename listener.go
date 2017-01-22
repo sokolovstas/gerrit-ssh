@@ -9,18 +9,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// NewGerritSSH creates, and returns a new GerritESListener object. Its only argument
+// New creates, and returns a new GerritESListener object. Its only argument
 // is a channel that the worker can add itself to whenever it is done its
 // work.
-func NewGerritSSH(id int, url string, username string, sshKeyPath string) GerritSSH {
+func New(url string, username string, sshKeyPath string) GerritSSH {
 	// Create, and return the worker.
 	worker := GerritSSH{
-		ID:         id,
 		StopChan:   make(chan bool),
+		ResultChan: make(chan StreamEvent),
 		Username:   username,
 		SSHKeyPath: sshKeyPath,
 		URL:        url,
 	}
+
+	worker.Debug = false
 
 	return worker
 }
@@ -32,12 +34,20 @@ type GerritSSH struct {
 	SSHKeyPath string
 	URL        string
 	StopChan   chan bool
+	ResultChan chan StreamEvent
+	Debug      bool
+	session    *ssh.Session
+	conn       ssh.Conn
+	callback   func(event StreamEvent)
 }
 
-// Start stream event routine
-func (g *GerritSSH) Start() {
+// StartStreamEvents starts stream event routine
+func (g *GerritSSH) StartStreamEvents() {
 	go func() {
 		buffer := bytes.Buffer{}
+		if g.Debug {
+			log.Printf("Gerrit SSH: Start stream events")
+		}
 		go g.sshConnection("stream-events", &buffer)
 
 		event := StreamEvent{}
@@ -46,21 +56,28 @@ func (g *GerritSSH) Start() {
 				err := json.Unmarshal(buffer.Bytes(), &event)
 				if err == nil {
 					buffer.Reset()
-					log.Printf("Gerrit SSH: recived event: %v", event.Type)
-				} else {
-					log.Fatalf("Gerrit SSH: parse event error: %v", err.Error())
+					if g.Debug {
+						log.Printf("Gerrit SSH: recived event: %v", event.Type)
+					}
+					g.ResultChan <- event
 				}
 			}
-
-			if <-g.StopChan {
+			select {
+			case <-g.StopChan:
+				if g.Debug {
+					log.Printf("Gerrit SSH: Stop stream events")
+				}
+				g.session.Close()
+				g.conn.Close()
 				return
+			default:
 			}
 		}
 	}()
 }
 
-// Stop stream event routine
-func (g *GerritSSH) Stop() {
+// StopStreamEvents stop stream event routine
+func (g *GerritSSH) StopStreamEvents() {
 	go func() {
 		g.StopChan <- true
 	}()
@@ -99,12 +116,18 @@ func (g *GerritSSH) sshConnection(command string, buffer *bytes.Buffer) (string,
 		log.Fatalf("Gerrit SSH: dial failed:%v", err)
 		return "", err
 	}
+	if command == "stream-events" {
+		g.conn = conn
+	}
 	defer conn.Close()
 	// Start new session
 	session, err := conn.NewSession()
 	if err != nil {
 		log.Fatalf("Gerrit SSH: session failed:%v", err)
 		return "", err
+	}
+	if command == "stream-events" {
+		g.session = session
 	}
 	defer session.Close()
 
